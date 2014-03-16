@@ -187,10 +187,6 @@ void EvalInfo::score_attacks(int p0, int sq, Bitboard sq_attackers, Bitboard def
 
 void EvalInfo::eval_safety()
 {
-	// Squares that defended by pawns or occupied by attacker pawns, are useless as far as piece
-	// attacks are concerned
-	const Bitboard solid = B->get_attacks(us, PAWN) | their_pawns;
-
 	// Defended by our pieces
 	const Bitboard defended = B->get_attacks(us, KNIGHT) | B->get_attacks(us, BISHOP)
 							  | B->get_attacks(us, ROOK);
@@ -199,7 +195,7 @@ void EvalInfo::eval_safety()
 	Bitboard sq_attackers, attacked, occ, fss;
 
 	// Knight attacks
-	attacked = B->get_attacks(them, KNIGHT) & (bb::kattacks(our_ksq) | bb::nattacks(our_ksq)) & ~solid;
+	attacked = B->get_attacks(them, KNIGHT) & (bb::kattacks(our_ksq) | bb::nattacks(our_ksq));
 	if (attacked) {
 		fss = B->get_pieces(them, KNIGHT);
 		while (attacked) {
@@ -210,7 +206,7 @@ void EvalInfo::eval_safety()
 	}
 
 	// Lateral attacks
-	attacked = B->get_attacks(them, ROOK) & bb::kattacks(our_ksq) & ~solid;
+	attacked = B->get_attacks(them, ROOK) & bb::kattacks(our_ksq);
 	if (attacked) {
 		fss = B->get_RQ(them);
 		occ = B->st().occ ^ fss;	// rooks and queens see through each other
@@ -227,7 +223,7 @@ void EvalInfo::eval_safety()
 		}
 
 	// Diagonal attacks
-	attacked = B->get_attacks(them, BISHOP) & bb::kattacks(our_ksq) & ~solid;
+	attacked = B->get_attacks(them, BISHOP) & bb::kattacks(our_ksq);
 	if (attacked) {
 		fss = B->get_BQ(them);
 		occ = B->st().occ ^ fss;	// bishops and queens see through each other
