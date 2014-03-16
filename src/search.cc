@@ -579,10 +579,10 @@ std::pair<move::move_t, move::move_t> bestmove(board::Board& B, const Limits& sl
 	TT.new_search();
 	B.set_root();	// remember root node, for correct 2/3-fold in is_draw()
 
-	// Calculate the value of a draw by chess rules, for both colors (contempt option)
+	// Contempt Draw value
 	const int us = B.get_turn(), them = opp_color(us);
-	DrawScore[us] = uci::Analyze ? 0 : -uci::Contempt;
-	DrawScore[them] = uci::Analyze ? 0 : uci::Contempt;
+	DrawScore[us] = -uci::Contempt;
+	DrawScore[them] = uci::Contempt;
 	
 	uci::info ui;
 	ui.pv = pv[0];

@@ -24,7 +24,7 @@ extern std::string check_input();
 // UCI option values
 extern int Hash;		// in MB
 extern int Contempt;	// in cp
-extern bool LimitStrength, Ponder, Analyze;
+extern bool LimitStrength, Ponder;
 extern int Elo;
 extern int TimeBuffer;
 
