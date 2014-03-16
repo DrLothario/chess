@@ -51,7 +51,6 @@ int eval_margin(int depth)	  { return 37 * depth + 111; }
 int null_reduction(int depth) { return (13 * depth + 72) / 32; }
 
 int DrawScore[NB_COLOR];	// Contempt draw score by color
-int TTPrunePVPly;			// TT pruning at PV nodes after this ply
 
 move::move_t pv[MAX_PLY+1][MAX_PLY+1];
 move::move_t best_move, ponder_move;
@@ -116,24 +115,17 @@ int score_from_tt(int tt_score, int ply)
 		   tt_score <= mated_in(MAX_PLY) ? tt_score + ply : tt_score;
 }
 
-bool can_return_tt(bool is_pv, const TTable::Entry *tte, int depth, int beta, int ply)
-/* PV nodes: return only exact scores
- * non PV nodes: return fail high/low scores. Mate scores are also trusted, regardless of the
- * depth. This idea is from StockFish, and although it's not totally sound, it seems to work. */
+bool can_return_tt(const TTable::Entry *tte, int depth, int beta, int ply)
+// TT pruning is only done at non PV nodes, in order to display untruncated PVs
 {
 	const bool depth_ok = tte->depth >= depth;
+	const int tt_score = score_from_tt(tte->score, ply);
 
-	if (is_pv)
-		return depth_ok && tte->node_type() == PV
-			   && ply >= TTPrunePVPly;
-	else {
-		const int tt_score = score_from_tt(tte->score, ply);
-		return (depth_ok
-				|| tt_score >= std::max(mate_in(MAX_PLY), beta)
-				|| tt_score < std::min(mated_in(MAX_PLY), beta))
-			   && ((tte->node_type() == Cut && tt_score >= beta)
-				   || (tte->node_type() == All && tt_score < beta));
-	}
+	return (depth_ok
+			|| tt_score >= std::max(mate_in(MAX_PLY), beta)
+			|| tt_score < std::min(mated_in(MAX_PLY), beta))
+		   && ((tte->node_type() == Cut && tt_score >= beta)
+			   || (tte->node_type() == All && tt_score < beta));
 }
 
 void time_alloc(const search::Limits& sl, int result[2])
@@ -171,7 +163,7 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 	// TT lookup
 	const TTable::Entry *tte = search::TT.probe(key);
 	if (tte) {
-		if (can_return_tt(node_type == PV, tte, depth, beta, ss->ply)) {
+		if (node_type != PV && can_return_tt(tte, depth, beta, ss->ply)) {
 			search::TT.refresh(tte);
 			return score_from_tt(tte->score, ss->ply);
 		}
@@ -315,7 +307,7 @@ int pvs(board::Board& B, int alpha, int beta, int depth, int node_type, SearchIn
 	// TT lookup
 	const TTable::Entry *tte = search::TT.probe(key);
 	if (tte) {
-		if (!root && can_return_tt(node_type == PV, tte, depth, beta, ss->ply)) {
+		if (node_type != PV && can_return_tt(tte, depth, beta, ss->ply)) {
 			// Refresh TT entry to prevent ageing
 			search::TT.refresh(tte);
 
@@ -592,11 +584,6 @@ std::pair<move::move_t, move::move_t> bestmove(board::Board& B, const Limits& sl
 	DrawScore[us] = uci::Analyze ? 0 : -uci::Contempt;
 	DrawScore[them] = uci::Analyze ? 0 : uci::Contempt;
 	
-	// TT pruning at PV nodes:
-	// only when play >= , to have a ponder move.
-	// no pruning in analyse mode, to print untruncated PVs.
-	TTPrunePVPly = uci::Analyze ? MAX_PLY : 2;
-
 	uci::info ui;
 	ui.pv = pv[0];
 	
