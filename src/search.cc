@@ -449,7 +449,7 @@ tt_skip_null:
 			if (child_depth <= 5) {
 				const int opt_score = stand_pat + vEP/2 + eval_margin(child_depth);
 				if (opt_score <= alpha) {
-					best_score = std::max(best_score, opt_score);
+					best_score = std::max(best_score, std::min(alpha, stand_pat + see));
 					continue;
 				}
 			}
