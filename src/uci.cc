@@ -31,9 +31,7 @@ namespace uci {
 
 int Hash = 16;
 int Contempt = 25;
-const int ELO_MIN = 1500, ELO_MAX = 2700;
-bool LimitStrength = false, Ponder = false;
-int Elo = ELO_MIN;
+bool Ponder = false;
 int TimeBuffer = 100;
 
 }	// namespace uci
@@ -51,9 +49,6 @@ void intro()
 		<< "option name Clear Hash type button\n"
 		<< "option name Contempt type spin default " << uci::Contempt << " min 0 max 100\n"
 		<< "option name Ponder type check default " << uci::Ponder << '\n'
-		<< "option name UCI_LimitStrength type check default " << uci::LimitStrength << '\n'
-		<< "option name UCI_Elo type spin default " << uci::Elo
-			<< " min " << uci::ELO_MIN << " max " << uci::ELO_MAX <<  '\n'
 		<< "option name Time Buffer type spin default " << uci::TimeBuffer << " min 0 max 1000\n"
 		// end of UCI options
 		<< "uciok" << std::endl;
@@ -86,31 +81,23 @@ void position(board::Board& B, std::istringstream& is)
 void go(board::Board& B, std::istringstream& is)
 {
 	search::Limits sl;
-	search::polling_frequency = 256;
+	std::string token;
 
-	if (uci::LimitStrength) {
-		// discard parameters of the go command
-		sl.nodes = pow(2.0, 8.0 + pow((uci::Elo - uci::ELO_MIN) / 128.0, 1.0 / 0.9));
-		if (sl.nodes / 16 <= 256)
-			search::polling_frequency = 1ULL << bb::msb(sl.nodes / 16);
-	} else {
-		std::string token;
-		while (is >> token) {
-			if (token == (B.get_turn() ? "btime" : "wtime"))
-				is >> sl.time;
-			else if (token == (B.get_turn() ? "binc" : "winc"))
-				is >> sl.inc;
-			else if (token == "movestogo")
-				is >> sl.movestogo;
-			else if (token == "movetime")
-				is >> sl.movetime;
-			else if (token == "depth")
-				is >> sl.depth;
-			else if (token == "nodes")
-				is >> sl.nodes;
-			else if (token == "ponder")
-				sl.ponder = true;
-		}
+	while (is >> token) {
+		if (token == (B.get_turn() ? "btime" : "wtime"))
+			is >> sl.time;
+		else if (token == (B.get_turn() ? "binc" : "winc"))
+			is >> sl.inc;
+		else if (token == "movestogo")
+			is >> sl.movestogo;
+		else if (token == "movetime")
+			is >> sl.movetime;
+		else if (token == "depth")
+			is >> sl.depth;
+		else if (token == "nodes")
+			is >> sl.nodes;
+		else if (token == "ponder")
+			sl.ponder = true;
 	}
 
 	// best and ponder move
@@ -139,10 +126,6 @@ void setoption(std::istringstream& is)
 		is >> uci::Contempt;
 	else if (name == "Ponder")
 		is >> uci::Ponder;
-	else if (name == "UCI_LimitStrength")
-		is >> uci::LimitStrength;
-	else if (name == "UCI_Elo")
-		is >> uci::Elo;
 	else if (name == "TimeBuffer")
 		is >> uci::TimeBuffer;
 }

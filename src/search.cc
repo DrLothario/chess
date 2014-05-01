@@ -29,7 +29,6 @@ TTable TT;
 Refutation R;
 
 uint64_t node_count;
-uint64_t polling_frequency;
 
 }	// namespace search
 
@@ -58,7 +57,7 @@ bool best_move_changed;
 
 void node_poll()
 {
-	if (!(++search::node_count & (search::polling_frequency - 1)) && can_abort) {
+	if ((++search::node_count & 255) == 0 && can_abort) {
 		bool abort = false;
 
 		// node limit reached ?
@@ -180,7 +179,7 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 		else if (tte->score > stand_pat && tte->node_type() >= PV)
 			stand_pat = tte->score;
 	}
-	
+
 	// consider stand pat when not in check
 	if (!in_check) {
 		best_score = stand_pat;
@@ -293,7 +292,7 @@ int pvs(board::Board& B, int alpha, int beta, int depth, int node_type, SearchIn
 
 	if (!root && (B.is_draw() || (bb::count_bit(B.st().occ) <= 4 && eval::is_tb_draw(B))))
 		return DrawScore[B.get_turn()];
-		
+
 	// mate distance pruning
 	alpha = std::max(alpha, mated_in(ss->ply));
 	beta = std::min(beta, mate_in(ss->ply + 1));
@@ -443,7 +442,7 @@ tt_skip_null:
 		if ( depth <= 6 && cnt > 1
 			 && !capture && !dangerous && !in_check
 			 && node_type != PV ) {
-			
+
 			// pre futility pruning
 			const int child_depth = new_depth - ss->reduction;
 			if (child_depth <= 5) {
@@ -453,7 +452,7 @@ tt_skip_null:
 					continue;
 				}
 			}
-			
+
 			// Move count pruning
 			if ( LMR >= 3 + depth * (2 * depth - 1) / 2
 				 && alpha > mated_in(MAX_PLY) ) {
@@ -583,14 +582,14 @@ std::pair<move::move_t, move::move_t> bestmove(board::Board& B, const Limits& sl
 	const int us = B.get_turn(), them = opp_color(us);
 	DrawScore[us] = -uci::Contempt;
 	DrawScore[them] = uci::Contempt;
-	
+
 	uci::info ui;
 	ui.pv = pv[0];
-	
+
 	const int max_depth = sl.depth ? std::min(MAX_DEPTH, sl.depth) : MAX_DEPTH;
-	
+
 	// iterative deepening loop
-	for (int depth = 1, alpha = -INF, beta = +INF; depth <= max_depth; depth++) {		
+	for (int depth = 1, alpha = -INF, beta = +INF; depth <= max_depth; depth++) {
 		ui.clear();
 		ui.depth = depth;
 
@@ -625,9 +624,9 @@ std::pair<move::move_t, move::move_t> bestmove(board::Board& B, const Limits& sl
 			if (alpha < ui.score && ui.score < beta) {
 				// score is within bounds
 				ui.bound = uci::info::EXACT;
-				
+
 				// set aspiration window for the next depth (so aspiration starts at depth 5)
-				if (depth >= 4 && !is_mate_score(ui.score)) {					
+				if (depth >= 4 && !is_mate_score(ui.score)) {
 					alpha = ui.score - delta;
 					beta = ui.score + delta;
 				}
@@ -665,4 +664,3 @@ void clear_state()
 }
 
 }	// namespace search
-

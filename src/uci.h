@@ -22,18 +22,17 @@ extern void loop();
 extern std::string check_input();
 
 // UCI option values
-extern int Hash;		// in MB
-extern int Contempt;	// in cp
-extern bool LimitStrength, Ponder;
-extern int Elo;
+extern int Hash;
+extern int Contempt;
+extern bool Ponder;
 extern int TimeBuffer;
 
 struct info {
 	void clear();
-	
+
 	enum BoundType {EXACT, LBOUND, UBOUND};
 	BoundType bound;
-	
+
 	int score, depth, time;
 	uint64_t nodes;
 	move::move_t *pv;
