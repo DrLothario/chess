@@ -334,6 +334,7 @@ int pvs(board::Board& B, int alpha, int beta, int depth, int node_type, SearchIn
 
 	// post futility pruning
 	if ( depth <= 5
+		 && !ss->skip_null
 		 && !in_check && !is_mate_score(beta)
 		 && stand_pat >= beta + eval_margin(depth)
 		 && B.st().piece_psq[B.get_turn()]
