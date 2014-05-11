@@ -74,7 +74,7 @@ public:
 	void eval_pieces();
 	void eval_pawns();
 	void adjust_kbnk();
-	int interpolate();	
+	int interpolate();
 
 private:
 	const board::Board *B;
@@ -318,7 +318,7 @@ void EvalInfo::eval_pawns()
 void EvalInfo::eval_shield_storm()
 {
 	static const int ShieldPenalty[8] = {55, 0, 15, 40, 50, 55, 55, 0};	// CLOP
-	static const int StormPenalty[8] = {5, 0, 20, 10, 5, 0, 0, 0};	// CLOP
+	static const int StormPenalty[8] = {5, 0, 30, 10, 5, 0, 0, 0};	// tuned
 
 	const int kf = file(our_ksq);
 
