@@ -24,7 +24,7 @@ const Eval Material[NB_PIECE+1] = {
 	{vOP, vEP},
 	{vN, vN},
 	{vB, vB},
-	{vR-15, vR+15},
+	{vR, vR},
 	{vQ, vQ},
 	{vK, vK},
 	{ 0,  0}
