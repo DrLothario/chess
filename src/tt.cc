@@ -108,6 +108,9 @@ void TTable::store(Key key, int node_type, int8_t depth, int16_t score, int16_t 
 {
 	Entry *e = cluster[key & (count - 1)].entry, *replace = e;
 
+	if (node_type == All)
+		move = move::move_t(0);
+
 	for (size_t i = 0; i < 4; ++i, ++e) {
 		// overwrite empty or old
 		if (!e->key_type || e->key_match(key)) {
