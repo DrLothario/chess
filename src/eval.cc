@@ -248,7 +248,8 @@ void EvalInfo::eval_safety()
 
 	if (total_weight) {
 		// if king cannot retreat increase penalty
-		if (bb::shield(them, our_ksq) & ~B->get_attacks(them, NO_PIECE) & ~B->get_pieces(us))
+		if ( bb::shield(them, our_ksq)
+			 && (bb::shield(them, our_ksq) & ~B->get_attacks(them, NO_PIECE) & ~B->get_pieces(us)) )
 			++total_count;
 
 		e[us].op -= total_count * total_weight;
