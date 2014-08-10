@@ -42,7 +42,7 @@ const char* StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
 
 void intro()
 {
-	std::cout << "id name DiscoCheck 5.2\n"
+	std::cout << "id name DiscoCheck 5.2.1\n"
 		<< "id author Lucas Braesch\n"
 		// Declare UCI options here
 		<< "option name Hash type spin default " << uci::Hash << " min 1 max 8192\n"
