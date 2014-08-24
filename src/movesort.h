@@ -19,7 +19,7 @@
 
 struct SearchInfo {
 	move::move_t m, best, killer[2];
-	int ply, reduction, sym_eval;
+	int ply, reduction, eval;
 	bool skip_null, null_child;
 
 	void clear(int _ply);

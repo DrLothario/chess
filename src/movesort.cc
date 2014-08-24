@@ -16,11 +16,11 @@
 #include "movesort.h"
 #include "search.h"
 
-void SearchInfo::clear(int _ply)
+void SearchInfo:: clear(int _ply)
 {
 	ply = _ply;
 	m = best = killer[0] = killer[1] = move::move_t(0);
-	sym_eval = reduction = 0;
+	eval = reduction = 0;
 	skip_null = null_child = false;
 }
 

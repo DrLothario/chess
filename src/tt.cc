@@ -100,11 +100,11 @@ void TTable::Entry::save(Key k, uint8_t g, int nt, int8_t d, int16_t s, int16_t 
 	generation = g;
 	depth = d;
 	score = s;
-	sym_eval = e;
+	eval = e;
 	move = m;
 }
 
-void TTable::store(Key key, int node_type, int8_t depth, int16_t score, int16_t sym_eval, move::move_t move)
+void TTable::store(Key key, int node_type, int8_t depth, int16_t score, int16_t eval, move::move_t move)
 {
 	Entry *e = cluster[key & (count - 1)].entry, *replace = e;
 
@@ -128,5 +128,5 @@ void TTable::store(Key key, int node_type, int8_t depth, int16_t score, int16_t 
 			replace = e;
 	}
 
-	replace->save(key, generation, node_type, depth, score, sym_eval, move);
+	replace->save(key, generation, node_type, depth, score, eval, move);
 }
