@@ -517,20 +517,6 @@ bool Board::is_draw() const
 	return false;
 }
 
-Bitboard hanging_pieces(const Board& B)
-{
-	const int us = B.get_turn(), them = opp_color(us);
-
-	const Bitboard our_pawns = B.get_pieces(us, PAWN);
-	const Bitboard our_pieces = B.get_pieces(us) ^ our_pawns;
-
-	const Bitboard attacked = B.get_attacks(them, NO_PIECE);
-	const Bitboard defended = B.get_attacks(us, NO_PIECE);
-
-	return ((our_pawns ^ our_pieces) & attacked & ~defended)
-		| (our_pieces & B.get_attacks(them, PAWN));
-}
-
 Bitboard calc_attackers(const Board& B, int sq, Bitboard occ)
 {
 	assert(square_ok(sq));

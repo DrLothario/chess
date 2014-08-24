@@ -49,6 +49,8 @@ int razor_margin(int depth)	  { return 73 * depth + 145; }
 int eval_margin(int depth)	  { return 37 * depth + 111; }
 int null_reduction(int depth) { return (13 * depth + 72) / 32; }
 
+const int TEMPO = 6;
+
 int DrawScore[NB_COLOR];	// Contempt draw score by color
 
 move::move_t pv[MAX_PLY+1][MAX_PLY+1];
@@ -157,8 +159,6 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 	if (B.is_draw())
 		return DrawScore[B.get_turn()];
 
-	const Bitboard hanging = hanging_pieces(B);
-
 	// TT lookup
 	const TTable::Entry *tte = search::TT.probe(key);
 	if (tte) {
@@ -166,13 +166,13 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 			search::TT.refresh(tte);
 			return score_from_tt(tte->score, ss->ply);
 		}
-		ss->eval = tte->eval;
+		ss->sym_eval = tte->sym_eval;
 		ss->best = tte->move;
 	} else
-		ss->eval = in_check ? -INF : (ss->null_child ? -(ss - 1)->eval : eval::symmetric_eval(B));
+		ss->sym_eval = in_check ? -INF : (ss->null_child ? -(ss - 1)->sym_eval : eval::symmetric_eval(B));
 
 	// stand pat score
-	int stand_pat = ss->eval + eval::asymmetric_eval(B, hanging);
+	int stand_pat = ss->sym_eval + TEMPO;
 	if (tte) {
 		if (tte->score < stand_pat && tte->node_type() <= PV)
 			stand_pat = tte->score;
@@ -253,7 +253,7 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 
 	// update TT
 	node_type = best_score <= old_alpha ? All : best_score >= beta ? Cut : PV;
-	search::TT.store(key, node_type, depth, score_to_tt(best_score, ss->ply), ss->eval, ss->best);
+	search::TT.store(key, node_type, depth, score_to_tt(best_score, ss->ply), ss->sym_eval, ss->best);
 
 	return best_score;
 }
@@ -301,8 +301,6 @@ int pvs(board::Board& B, int alpha, int beta, int depth, int node_type, SearchIn
 		return alpha;
 	}
 
-	const Bitboard hanging = hanging_pieces(B);
-
 	// TT lookup
 	const TTable::Entry *tte = search::TT.probe(key);
 	if (tte) {
@@ -313,18 +311,18 @@ int pvs(board::Board& B, int alpha, int beta, int depth, int node_type, SearchIn
 			// update killers, refutation, and history on TT prune when alpha is raised
 			if (tte->score > old_alpha && (ss->best = tte->move) && !move::is_cop(B, ss->best)) {
 				update_killers(B, ss);
-				H.add(B, ss->best, (depth * depth) >> (hanging != 0));
+				H.add(B, ss->best, depth * depth);
 			}
 
 			return score_from_tt(tte->score, ss->ply);
 		}
-		ss->eval = tte->eval;
+		ss->sym_eval = tte->sym_eval;
 		ss->best = tte->move;
 	} else
-		ss->eval = in_check ? -INF : (ss->null_child ? -(ss - 1)->eval : eval::symmetric_eval(B));
+		ss->sym_eval = in_check ? -INF : (ss->null_child ? -(ss - 1)->sym_eval : eval::symmetric_eval(B));
 
 	// Stand pat score: adjust for assymetric eval, and using tte->score (when possible)
-	int stand_pat = ss->eval + eval::asymmetric_eval(B, hanging);
+	int stand_pat = ss->sym_eval + TEMPO;
 	if (tte) {
 		if (tte->score < stand_pat && tte->node_type() <= PV)
 			stand_pat = tte->score;
@@ -534,7 +532,7 @@ tt_skip_null:
 
 	// update TT
 	node_type = best_score <= old_alpha ? All : best_score >= beta ? Cut : PV;
-	search::TT.store(key, node_type, depth, score_to_tt(best_score, ss->ply), ss->eval, ss->best);
+	search::TT.store(key, node_type, depth, score_to_tt(best_score, ss->ply), ss->sym_eval, ss->best);
 
 	// best move is quiet: update move sorting heuristics if alpha was raised
 	if (best_score > old_alpha && ss->best && !move::is_cop(B, ss->best)) {
@@ -545,7 +543,6 @@ tt_skip_null:
 		// mark ss->best as good, and all other moves searched as bad
 		move::move_t m;
 		int bonus = std::min(depth * depth, (int)History::Max);
-		if (hanging) bonus /= 2;
 		while ( (m = MS.previous()) )
 			if (!move::is_cop(B, m))
 				H.add(B, m, m == ss->best ? bonus : -bonus);

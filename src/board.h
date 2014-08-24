@@ -114,7 +114,6 @@ private:
 extern const std::string PieceLabel[NB_COLOR];
 extern std::ostream& operator<< (std::ostream& ostrm, const Board& B);
 
-extern Bitboard hanging_pieces(const Board& B);
 extern Bitboard calc_attackers(const Board& B, int sq, Bitboard occ);
 extern bool has_mating_material(const Board& B, int color);
 

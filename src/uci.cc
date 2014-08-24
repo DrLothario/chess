@@ -30,7 +30,7 @@
 namespace uci {
 
 int Hash = 16;
-int Contempt = 25;
+int Contempt = 20;
 bool Ponder = false;
 int TimeBuffer = 100;
 
@@ -198,7 +198,7 @@ void loop()
 		} else if (token == "setoption")
 			setoption(is);
 		else if (token == "eval") {
-			const int e = eval::symmetric_eval(B) + eval::asymmetric_eval(B, hanging_pieces(B));
+			const int e = eval::symmetric_eval(B);
 			std::cout << B << "eval = " << e << std::endl;
 		} else if (token == "perft") {
 			int depth;

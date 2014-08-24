@@ -28,7 +28,7 @@ int main (int argc, char **argv)
 
 	if (argc == 2) {
 		if (std::string(argv[1]) == "bench")
-			bench(12);
+			bench(13);
 		else if (std::string(argv[1]) == "perft")
 			test_perft();
 		else if (std::string(argv[1]) == "see")

@@ -501,7 +501,7 @@ int EvalInfo::interpolate()
 	const int om = bb::count_bit(B->get_NB(us));
 	const int tm = bb::count_bit(B->get_NB(them));
 	const int imbalance = 2 * (om - tm) * bb::count_bit(B->get_P());
-	
+
 	const int phase = calc_phase();
 	const int op = e[us].op - e[them].op, eg = e[us].eg - e[them].eg;
 	const int eval = (phase * op + (1024 - phase) * eg * eval_factor / 16) / 1024;
@@ -558,27 +558,6 @@ bool kbpk_draw(const board::Board& B)
 		&& bb::kdist(their_king, prom_sq) - (stm != us) <= bb::kdist(pawn, prom_sq);
 }
 
-int stand_pat_penalty(const board::Board& B, Bitboard hanging)
-{
-	if (bb::several_bits(hanging)) {
-		// Several pieces are hanging. Take the lowest one and return half its value.
-		int piece = KING;
-		while (hanging) {
-			const int sq = bb::pop_lsb(&hanging);
-			const int p = B.get_piece_on(sq);
-			piece = std::min(piece, p);
-		}
-		return psq::material(piece).op / 2;
-	} else if (hanging & B.st().pinned) {
-		// Only one piece hanging, but also pinned. Return half its value.
-		assert(bb::count_bit(hanging) == 1);
-		const int sq = bb::lsb(hanging), piece = B.get_piece_on(sq);
-		return psq::material(piece).op / 2;
-	}
-
-	return 0;
-}
-
 }	// namespace
 
 namespace eval {
@@ -627,12 +606,6 @@ int symmetric_eval(const board::Board& B)
 	}
 
 	return ei.interpolate();
-}
-
-int asymmetric_eval(const board::Board& B, Bitboard hanging)
-{
-	static const int TEMPO = 7;
-	return TEMPO - stand_pat_penalty(B, hanging);
 }
 
 bool is_tb_draw(const board::Board& B)

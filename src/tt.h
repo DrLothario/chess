@@ -23,7 +23,7 @@ public:
 		Key key_type;	// bit 0..1 for node_type+1, and 2..63 for key's 62 MSB
 		mutable uint8_t generation;
 		int8_t depth;
-		int16_t score, eval;
+		int16_t score, sym_eval;
 		move::move_t move;
 
 		int node_type() const {
@@ -57,7 +57,7 @@ public:
 	void prefetch(Key key) const {
 		__builtin_prefetch((char *)&cluster[key & (count - 1)]);
 	}
-	void store(Key key, int node_type, int8_t depth, int16_t score, int16_t eval, move::move_t move);
+	void store(Key key, int node_type, int8_t depth, int16_t score, int16_t sym_eval, move::move_t move);
 
 private:
 	size_t count;
