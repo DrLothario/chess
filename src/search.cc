@@ -117,14 +117,13 @@ int score_from_tt(int tt_score, int ply)
 bool can_return_tt(const TTable::Entry *tte, int depth, int beta, int ply)
 // TT pruning is only done at non PV nodes, in order to display untruncated PVs
 {
-	const bool depth_ok = tte->depth >= depth;
-	const int tt_score = score_from_tt(tte->score, ply);
+	if (tte->depth < depth)
+		return false;
 
-	return (depth_ok
-			|| tt_score >= std::max(mate_in(MAX_PLY), beta)
-			|| tt_score < std::min(mated_in(MAX_PLY), beta))
-		   && ((tte->node_type() == Cut && tt_score >= beta)
-			   || (tte->node_type() == All && tt_score < beta));
+	const int tt_score = score_from_tt(tte->score, ply);
+	return (tte->node_type() == Cut && tt_score >= beta)
+		|| (tte->node_type() == All && tt_score < beta)
+		|| tte->node_type() == PV;
 }
 
 void time_alloc(const search::Limits& sl, int result[2])
@@ -138,10 +137,10 @@ void time_alloc(const search::Limits& sl, int result[2])
 	}
 }
 
-int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, SearchInfo *ss)
+int qsearch(board::Board& B, int alpha, int beta, int depth, SearchInfo *ss)
 {
-	assert(depth <= 0);
-	assert(alpha < beta && (node_type == PV || alpha + 1 == beta));
+	assert(depth <= 0 && alpha < beta);
+	const bool pv_node = alpha < beta - 1;
 
 	const Key key = B.get_key();
 	search::TT.prefetch(key);
@@ -151,7 +150,7 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 	int best_score = -INF, old_alpha = alpha;
 	ss->best = move::move_t(0);
 
-	if (node_type == PV)
+	if (pv_node)
 		pv[ss->ply][0] = move::move_t(0);
 
 	if (B.is_draw())
@@ -162,7 +161,7 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 	// TT lookup
 	const TTable::Entry *tte = search::TT.probe(key);
 	if (tte) {
-		if (node_type != PV && can_return_tt(tte, depth, beta, ss->ply)) {
+		if (can_return_tt(tte, depth, beta, ss->ply)) {
 			search::TT.refresh(tte);
 			return score_from_tt(tte->score, ss->ply);
 		}
@@ -196,7 +195,7 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 		int check = move::is_check(B, ss->m);
 
 		// Futility pruning
-		if (!check && !in_check && node_type != PV) {
+		if (!check && !in_check) {
 			// opt_score = current eval + some margin + max material gain of the move
 			const int opt_score = fut_base
 				+ psq::material(B.get_piece_on(ss->m.tsq())).eg
@@ -226,7 +225,7 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 			score = stand_pat + see;
 		else {
 			B.play(ss->m);
-			score = -qsearch(B, -beta, -alpha, depth - 1, -node_type, ss + 1);
+			score = -qsearch(B, -beta, -alpha, depth - 1, ss + 1);
 			B.undo();
 		}
 
@@ -236,7 +235,7 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 			if (score > alpha) {
 				alpha = score;
 
-				if (node_type == PV) {
+				if (pv_node) {
 					// update the PV
 					pv[ss->ply][0] = ss->m;
 					memcpy(&pv[ss->ply][1], &pv[ss->ply+1][0], MAX_PLY * sizeof(move::move_t));
@@ -252,7 +251,7 @@ int qsearch(board::Board& B, int alpha, int beta, int depth, int node_type, Sear
 		return mated_in(ss->ply);
 
 	// update TT
-	node_type = best_score <= old_alpha ? All : best_score >= beta ? Cut : PV;
+	const int node_type = best_score <= old_alpha ? All : best_score >= beta ? Cut : PV;
 	search::TT.store(key, node_type, depth, score_to_tt(best_score, ss->ply), ss->eval, ss->best);
 
 	return best_score;
@@ -270,22 +269,24 @@ void update_killers(const board::Board& B, SearchInfo *ss)
 	search::R.set_refutation(B.get_dm_key(), ss->best);
 }
 
-int pvs(board::Board& B, int alpha, int beta, int depth, int node_type, SearchInfo *ss)
+template <bool root>
+int pvs(board::Board& B, int alpha, int beta, int depth, SearchInfo *ss)
 {
-	assert(alpha < beta && (node_type == PV || alpha + 1 == beta));
+	assert(alpha < beta);
+	const bool pv_node = alpha < beta - 1;
 
 	if (depth <= 0 || ss->ply >= MAX_DEPTH)
-		return qsearch(B, alpha, beta, depth, node_type, ss);
+		return qsearch(B, alpha, beta, depth, ss);
 
 	const Key key = B.get_key();
 	search::TT.prefetch(key);
 
-	if (node_type == PV)
+	if (pv_node)
 		pv[ss->ply][0] = move::move_t(0);
 
 	node_poll();
 
-	const bool root = !ss->ply, in_check = B.is_check();
+	const bool in_check = B.is_check();
 	const int old_alpha = alpha;
 	int best_score = -INF;
 	ss->best = move::move_t(0);
@@ -296,17 +297,15 @@ int pvs(board::Board& B, int alpha, int beta, int depth, int node_type, SearchIn
 	// mate distance pruning
 	alpha = std::max(alpha, mated_in(ss->ply));
 	beta = std::min(beta, mate_in(ss->ply + 1));
-	if (alpha >= beta) {
-		assert(!root);
+	if (!root && alpha >= beta)
 		return alpha;
-	}
 
 	const Bitboard hanging = hanging_pieces(B);
 
 	// TT lookup
 	const TTable::Entry *tte = search::TT.probe(key);
 	if (tte) {
-		if (node_type != PV && can_return_tt(tte, depth, beta, ss->ply)) {
+		if (!pv_node && can_return_tt(tte, depth, beta, ss->ply)) {
 			// Refresh TT entry to prevent ageing
 			search::TT.refresh(tte);
 
@@ -333,44 +332,40 @@ int pvs(board::Board& B, int alpha, int beta, int depth, int node_type, SearchIn
 	}
 
 	// post futility pruning
-	if ( depth <= 5
-		 && !ss->skip_null
-		 && !in_check && !is_mate_score(beta)
-		 && stand_pat >= beta + eval_margin(depth)
-		 && B.st().piece_psq[B.get_turn()]
-		 && node_type != PV )
+	if (!pv_node && depth <= 5 && !ss->skip_null
+		&& !in_check && !is_mate_score(beta)
+		&& stand_pat >= beta + eval_margin(depth)
+		&& B.st().piece_psq[B.get_turn()])
 		return stand_pat;
 
 	// Razoring
-	if ( depth <= 3
-		 && !in_check && !is_mate_score(beta)
-		 && node_type != PV ) {
-		const int threshold = beta - razor_margin(depth);
-		if (stand_pat < threshold) {
-			const int score = qsearch(B, threshold - 1, threshold, 0, All, ss + 1);
-			if (score < threshold)
+	if (!pv_node && depth <= 3 && !in_check && !is_mate_score(alpha)) {
+		const int lbound = alpha - razor_margin(depth);
+		if (stand_pat <= lbound) {
+			const int score = qsearch(B, lbound, lbound + 1, 0, ss + 1);
+			if (score <= lbound)
 				return score;
 		}
 	}
 
 	// Null move pruning
-	if ( stand_pat >= beta
-		 && !ss->skip_null && depth >= 2
-		 && !in_check && !is_mate_score(beta)
-		 && B.st().piece_psq[B.get_turn()]
-		 && node_type != PV ) {
+	if (stand_pat >= beta
+		&& !ss->skip_null && depth >= 2
+		&& !in_check && !is_mate_score(beta)
+		&& B.st().piece_psq[B.get_turn()]
+		&& !pv_node) {
 		const int reduction = null_reduction(depth) + (stand_pat - vOP >= beta);
 
 		// if the TT entry tells us that no move can beat alpha at the null search depth or deeper,
 		// we safely skip the null search.
-		if ( tte && tte->depth >= depth - reduction
-			 && tte->node_type() != Cut	// ie. upper bound or exact score
-			 && tte->score <= alpha )
+		if (tte && tte->depth >= depth - reduction
+			&& tte->node_type() != Cut	// ie. upper bound or exact score
+			&& tte->score <= alpha)
 			goto tt_skip_null;
 
 		B.play(move::move_t(0));
 		(ss + 1)->null_child = (ss + 1)->skip_null = true;
-		const int score = -pvs(B, -beta, -alpha, depth - reduction, All, ss + 1);
+		const int score = -pvs<false>(B, -beta, -alpha, depth - reduction, ss + 1);
 		(ss + 1)->null_child = (ss + 1)->skip_null = false;
 		B.undo();
 
@@ -390,9 +385,9 @@ tt_skip_null:
 
 	// Internal Iterative Deepening
 	if ( (!tte || !tte->move || tte->depth <= 0)
-		 && depth >= (node_type == PV ? 4 : 7) ) {
+		 && depth >= (pv_node ? 4 : 7) ) {
 		ss->skip_null = true;
-		pvs(B, alpha, beta, node_type == PV ? depth - 2 : depth / 2, node_type, ss);
+		pvs<false>(B, alpha, beta, pv_node ? depth - 2 : depth / 2, ss);
 		ss->skip_null = false;
 	}
 
@@ -440,9 +435,8 @@ tt_skip_null:
 			ss->reduction = new_depth;
 
 		// pruning at shallow depth
-		if ( depth <= 6 && cnt > 1
-			 && !capture && !dangerous && !in_check
-			 && node_type != PV ) {
+		if (!pv_node && depth <= 6 && cnt > 1
+			&& !capture && !dangerous && !in_check) {
 
 			// pre futility pruning
 			const int child_depth = new_depth - ss->reduction;
@@ -475,26 +469,18 @@ tt_skip_null:
 		if (first)
 			// search full window full depth
 			// Note that the full window is a zero window at non PV nodes
-			// "-node_type" effectively does PV->PV Cut<->All
-			score = -pvs(B, -beta, -alpha, new_depth, -node_type, ss + 1);
+			score = -pvs<false>(B, -beta, -alpha, new_depth, ss + 1);
 		else {
-			// Cut node: If the first move didn't produce the expected cutoff, then we are
-			// unlikely to get a cutoff at this node, which becomes an All node, so that its
-			// children are Cut nodes
-			if (node_type == Cut)
-				node_type = All;
-
 			// zero window search (reduced)
-			score = -pvs(B, -alpha - 1, -alpha, new_depth - ss->reduction,
-						 node_type == PV ? Cut : -node_type, ss + 1);
+			score = -pvs<false>(B, -alpha - 1, -alpha, new_depth - ss->reduction, ss + 1);
 
 			// doesn't fail low: verify at full depth, with zero window
 			if (score > alpha && ss->reduction)
-				score = -pvs(B, -alpha - 1, -alpha, new_depth, All, ss + 1);
+				score = -pvs<false>(B, -alpha - 1, -alpha, new_depth, ss + 1);
 
 			// still doesn't fail low at PV node: full depth and full window
-			if (node_type == PV && score > alpha)
-				score = -pvs(B, -beta, -alpha, new_depth , PV, ss + 1);
+			if (pv_node && score > alpha)
+				score = -pvs<false>(B, -beta, -alpha, new_depth , ss + 1);
 		}
 
 		B.undo();
@@ -506,7 +492,7 @@ tt_skip_null:
 			if (score > alpha) {
 				alpha = score;
 
-				if (node_type == PV) {
+				if (pv_node) {
 					// update the PV
 					pv[ss->ply][0] = ss->m;
 					memcpy(&pv[ss->ply][1], &pv[ss->ply+1][0], MAX_PLY * sizeof(move::move_t));
@@ -533,7 +519,7 @@ tt_skip_null:
 		throw ForcedMove();
 
 	// update TT
-	node_type = best_score <= old_alpha ? All : best_score >= beta ? Cut : PV;
+	const int node_type = best_score <= old_alpha ? All : best_score >= beta ? Cut : PV;
 	search::TT.store(key, node_type, depth, score_to_tt(best_score, ss->ply), ss->eval, ss->best);
 
 	// best move is quiet: update move sorting heuristics if alpha was raised
@@ -611,7 +597,7 @@ std::pair<move::move_t, move::move_t> bestmove(board::Board& B, const Limits& sl
 			// Aspiration loop
 
 			try {
-				ui.score = pvs(B, alpha, beta, depth, PV, ss);
+				ui.score = pvs<true>(B, alpha, beta, depth, ss);
 			} catch (AbortSearch e) {
 				goto return_pair;
 			} catch (ForcedMove e) {
